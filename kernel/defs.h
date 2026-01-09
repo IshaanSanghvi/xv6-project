@@ -183,3 +183,8 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// vma.c
+struct vma* vma_alloc(struct proc *p);
+struct vma* vma_find(struct proc *p, uint64 va);
+int vma_overlaps(struct proc *p, uint64 start, uint64 len);

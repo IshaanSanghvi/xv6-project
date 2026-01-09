@@ -1,3 +1,10 @@
+#include "spinlock.h"
+
+
+struct file;
+struct inode;
+struct proc;
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -81,9 +88,23 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#define NVMA 16
+
+struct vma {
+  int used;
+  uint64 start;
+  uint64 len;
+  int prot;
+  int flags;
+  uint64 off;
+  struct file *f;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
+
+  struct vma vmas[NVMA];
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state

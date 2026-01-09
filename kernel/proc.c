@@ -33,7 +33,7 @@ void
 proc_mapstacks(pagetable_t kpgtbl)
 {
   struct proc *p;
-  
+
   for(p = proc; p < &proc[NPROC]; p++) {
     char *pa = kalloc();
     if(pa == 0)
@@ -48,15 +48,28 @@ void
 procinit(void)
 {
   struct proc *p;
-  
+
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
+
   for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
+    initlock(&p->lock, "proc");
+    p->state = UNUSED;
+    p->kstack = KSTACK((int)(p - proc));
+
+    for(int i = 0; i < NVMA; i++) {
+      p->vmas[i].used = 0;
+      // optional: clear rest too (nice hygiene)
+      p->vmas[i].start = 0;
+      p->vmas[i].len = 0;
+      p->vmas[i].prot = 0;
+      p->vmas[i].flags = 0;
+      p->vmas[i].off = 0;
+      p->vmas[i].f = 0;
+    }
   }
 }
+
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -93,7 +106,7 @@ int
 allocpid()
 {
   int pid;
-  
+
   acquire(&pid_lock);
   pid = nextpid;
   nextpid = nextpid + 1;
@@ -124,6 +137,18 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+
+  // clear vmas for a fresh process slot
+  for(int i = 0; i < NVMA; i++){
+    p->vmas[i].used = 0;
+    p->vmas[i].start = 0;
+    p->vmas[i].len = 0;
+    p->vmas[i].prot = 0;
+    p->vmas[i].flags = 0;
+    p->vmas[i].off = 0;
+    p->vmas[i].f = 0;
+  }
+
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -168,6 +193,16 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+    // clear vmas on teardown
+  for(int i = 0; i < NVMA; i++){
+    p->vmas[i].used = 0;
+    p->vmas[i].start = 0;
+    p->vmas[i].len = 0;
+    p->vmas[i].prot = 0;
+    p->vmas[i].flags = 0;
+    p->vmas[i].off = 0;
+    p->vmas[i].f = 0;
+  }
   p->state = UNUSED;
 }
 
@@ -223,7 +258,7 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-  
+
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
@@ -352,7 +387,7 @@ kexit(int status)
 
   // Parent might be sleeping in wait().
   wakeup(p->parent);
-  
+
   acquire(&p->lock);
 
   p->xstate = status;
@@ -408,7 +443,7 @@ kwait(uint64 addr)
       release(&wait_lock);
       return -1;
     }
-    
+
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
@@ -543,7 +578,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   // Must acquire p->lock in order to
   // change p->state and then call sched.
   // Once we hold p->lock, we can be
@@ -622,7 +657,7 @@ int
 killed(struct proc *p)
 {
   int k;
-  
+
   acquire(&p->lock);
   k = p->killed;
   release(&p->lock);
