@@ -30,7 +30,9 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/sysmmap.o \
-  $K/vma.o
+  $K/vma.o \
+  $K/mmap_fault.o
+
 
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
@@ -150,6 +152,8 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_mmap_smoke\
+	$U/_mmap_touch\
+
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

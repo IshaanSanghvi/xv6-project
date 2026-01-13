@@ -188,3 +188,6 @@ void            virtio_disk_intr(void);
 struct vma* vma_alloc(struct proc *p);
 struct vma* vma_find(struct proc *p, uint64 va);
 int vma_overlaps(struct proc *p, uint64 start, uint64 len);
+
+
+int handle_mmap_fault(struct proc *p, uint64 va, uint64 scause);

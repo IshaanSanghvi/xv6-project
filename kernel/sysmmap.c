@@ -101,6 +101,10 @@ sys_munmap(void)
     return (uint64)-1;
   }
 
+  uint64 npages = v->len / PGSIZE;
+  uvmunmap(p->pagetable, v->start, npages, 1);
+  
+
   v->used  = 0;
   v->start = 0;
   v->len   = 0;
