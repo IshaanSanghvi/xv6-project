@@ -1,9 +1,9 @@
 Usertests: Passed All
 bench_mmap output:
 
-$ bench_mmap
-[touch] 2048 pages * 200 rounds in 1 ticks
-[read] 37203200 bytes from usertests over 200 rounds in 401 ticks
+
+![Benchmark](images/bench_mapp.png)
+
 
 My environment:
 
