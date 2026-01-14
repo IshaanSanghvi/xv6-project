@@ -1,9 +1,16 @@
 #include "types.h"
-#include "param.h"
-#include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "param.h"
+#include "memlayout.h"
 #include "proc.h"
+
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+
+#include "mmap.h"
+
 
 static int
 prot_to_pte(int prot)
@@ -28,9 +35,13 @@ handle_mmap_fault(struct proc *p, uint64 va, uint64 scause)
 
   uint64 pageva = PGROUNDDOWN(va);
 
-  // Look up the VMA that covers this VA.
+  // Find VMA and snapshot fields we need (don't hold p->lock during disk I/O).
+  uint64 v_start, v_off;
+  int v_prot;
+  struct file *f;
+
   acquire(&p->lock);
-  struct vma *v = vma_find(p, va);
+  struct vma *v = vma_find(p, pageva);
   if(v == 0){
     release(&p->lock);
     return -1;
@@ -39,20 +50,17 @@ handle_mmap_fault(struct proc *p, uint64 va, uint64 scause)
   // Permission check based on fault type.
   // 13 = load fault, 15 = store fault, 12 = instruction fault
   if(scause == 15){
-    // write fault => require PROT_WRITE (0x2)
-    if((v->prot & 0x2) == 0){
+    if((v->prot & PROT_WRITE) == 0){
       release(&p->lock);
       return -1;
     }
   } else if(scause == 13){
-    // read fault => require PROT_READ (0x1)
-    if((v->prot & 0x1) == 0){
+    if((v->prot & PROT_READ) == 0){
       release(&p->lock);
       return -1;
     }
   } else if(scause == 12){
-    // exec fault => require PROT_EXEC (0x4)
-    if((v->prot & 0x4) == 0){
+    if((v->prot & PROT_EXEC) == 0){
       release(&p->lock);
       return -1;
     }
@@ -61,7 +69,12 @@ handle_mmap_fault(struct proc *p, uint64 va, uint64 scause)
     return -1;
   }
 
-  int perm = prot_to_pte(v->prot);
+  v_start = v->start;
+  v_off   = v->off;
+  v_prot  = v->prot;
+  f = v->f;
+
+  int perm = prot_to_pte(v_prot);
   release(&p->lock);
 
   // If already mapped, this isn't the "missing page" kind of fault.
@@ -74,7 +87,25 @@ handle_mmap_fault(struct proc *p, uint64 va, uint64 scause)
   if(mem == 0)
     return -1;
 
+  // Zero-fill first so short reads leave zero tail.
   memset(mem, 0, PGSIZE);
+
+  // File-backed? page-in from file.
+  if(f != 0){
+    uint64 pageoff = pageva - v_start;
+    uint64 fileoff = v_off + pageoff;
+
+    struct inode *ip = f->ip;
+    ilock(ip);
+    int n = readi(ip, 0, (uint64)mem, (uint)fileoff, PGSIZE);
+    iunlock(ip);
+
+    if(n < 0){
+      kfree(mem);
+      return -1;
+    }
+    // if n < PGSIZE, remainder stays zero due to memset above
+  }
 
   // Map it into user pagetable.
   if(mappages(p->pagetable, pageva, PGSIZE, (uint64)mem, perm) != 0){

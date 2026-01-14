@@ -155,6 +155,7 @@ UPROGS=\
 	$U/_mmap_touch\
 	$U/_filestoretest \
 	$U/_fileclosetest \
+	$U/_mapfileread \
 
 
 fs.img: mkfs/mkfs README $(UPROGS)

@@ -44,7 +44,7 @@ usertrap(void)
 
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);  //DOC: kernelvec
+  w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
 
@@ -69,16 +69,14 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if(r_scause() == 13 || r_scause() == 15){
-    uint64 va = r_stval();
+    uint64 va = PGROUNDDOWN(r_stval());
     uint64 sc = r_scause();
 
-    // 1) mmap-backed VMAs (Milestone 2)
     if(handle_mmap_fault(p, va, sc) == 0){
-      // handled
+
     }
-    // 2) sbrk lazy allocation (your existing mechanism)
-    else if(vmfault(p->pagetable, va, (sc == 13) ? 1 : 0) != 0){
-      // handled
+    else if(vmfault(p->pagetable, va, (sc == 13) ? 1 : 0) == 0){
+
     }
     // 3) not handled => kill
     else{
