@@ -2,7 +2,7 @@ Usertests: Passed All
 bench_mmap output:
 
 
-![Benchmark](images/bench_mapp.png)
+![Benchmark](./bench_mapp.png)
 
 
 My environment:
