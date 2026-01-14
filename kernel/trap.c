@@ -68,15 +68,30 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else if((r_scause() == 15 || r_scause() == 13) &&
-            handle_mmap_fault(p, r_stval(), r_scause()) == 0) {
-    // page fault on lazily-allocated page
-  } else {
+  } else if(r_scause() == 13 || r_scause() == 15){
+    uint64 va = r_stval();
+    uint64 sc = r_scause();
+
+    // 1) mmap-backed VMAs (Milestone 2)
+    if(handle_mmap_fault(p, va, sc) == 0){
+      // handled
+    }
+    // 2) sbrk lazy allocation (your existing mechanism)
+    else if(vmfault(p->pagetable, va, (sc == 13) ? 1 : 0) != 0){
+      // handled
+    }
+    // 3) not handled => kill
+    else{
+      printf("usertrap(): unexpected scause 0x%lx pid=%d\n", sc, p->pid);
+      printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), va);
+      setkilled(p);
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
     setkilled(p);
   }
-
   if(killed(p))
     kexit(-1);
 
