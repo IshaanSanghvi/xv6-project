@@ -82,12 +82,16 @@ usertrap(void)
     }
     // 3) not handled => kill
     else{
+      struct vma *v = vma_find(myproc(), PGROUNDDOWN(r_stval()));
+      printf("vma=%p\n", v);
       printf("usertrap(): unexpected scause 0x%lx pid=%d\n", sc, p->pid);
       printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), va);
       setkilled(p);
     }
   }
   else {
+    struct vma *v = vma_find(myproc(), PGROUNDDOWN(r_stval()));
+    printf("vma=%p\n", v);
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
     setkilled(p);

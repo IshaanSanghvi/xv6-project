@@ -153,6 +153,8 @@ UPROGS=\
 	$U/_dorphan\
 	$U/_mmap_smoke\
 	$U/_mmap_touch\
+	$U/_filestoretest \
+	$U/_fileclosetest \
 
 
 fs.img: mkfs/mkfs README $(UPROGS)

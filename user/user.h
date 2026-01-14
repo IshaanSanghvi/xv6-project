@@ -1,5 +1,13 @@
 #define SBRK_ERROR ((char *)-1)
 
+// mmap prot flags
+
+
+// mmap mapping flags
+#define MAP_SHARED  0x01
+#define MAP_PRIVATE 0x02
+
+
 struct stat;
 
 // system calls
@@ -50,4 +58,3 @@ void free(void*);
 
 void* mmap(void *addr, int length, int prot, int flags, int fd, int offset);
 int munmap(void *addr, int length);
-

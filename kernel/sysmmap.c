@@ -4,6 +4,8 @@
 #include "param.h"
 #include "memlayout.h"
 #include "proc.h"
+#include "mmap.h"
+
 
 uint64
 sys_mmap(void)
@@ -22,28 +24,45 @@ sys_mmap(void)
   if(length <= 0)           return (uint64)-1;
   if(offset % PGSIZE != 0)  return (uint64)-1;
 
+  int is_shared  = (flags & MAP_SHARED) != 0;
+  int is_private = (flags & MAP_PRIVATE) != 0;
+  if(is_shared == is_private) return (uint64)-1;
+
   struct proc *p = myproc();
+  struct file *f = 0;
+
+  if(fd != -1){
+    if(fd < 0 || fd >= NOFILE) return (uint64)-1;
+  }
 
   uint64 len = PGROUNDUP((uint64)length);
   if(len == 0) return (uint64)-1;
 
-  // Choose mapping start at the end of current heap
   uint64 start = PGROUNDUP(p->sz);
 
-  // overflow + user VA range checks
   if(start + len < start) return (uint64)-1;
   if(start + len >= MAXVA) return (uint64)-1;
 
   acquire(&p->lock);
 
-  // ensure no overlap with existing VMAs
+  if(fd != -1){
+    if(p->ofile[fd] == 0){
+      release(&p->lock);
+      return (uint64)-1;
+    }
+    f = p->ofile[fd];
+    filedup(f);
+  }
+
   if(vma_overlaps(p, start, len)){
+    if(f) fileclose(f);
     release(&p->lock);
     return (uint64)-1;
   }
 
   struct vma *v = vma_alloc(p);
   if(v == 0){
+    if(f) fileclose(f);
     release(&p->lock);
     return (uint64)-1;
   }
@@ -54,14 +73,14 @@ sys_mmap(void)
   v->prot  = prot;
   v->flags = flags;
   v->off   = (uint64)offset;
-  v->f     = 0;
+  v->f     = f;
 
-  // reserve VA space by bumping sz
   p->sz = start + len;
 
   release(&p->lock);
   return start;
 }
+
 
 uint64
 sys_munmap(void)
@@ -103,7 +122,7 @@ sys_munmap(void)
 
   uint64 npages = v->len / PGSIZE;
   uvmunmap(p->pagetable, v->start, npages, 1);
-  
+
 
   v->used  = 0;
   v->start = 0;

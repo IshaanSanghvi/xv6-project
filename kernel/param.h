@@ -16,3 +16,4 @@
 #define PROT_WRITE   2
 #define PROT_EXEC    4
 
+#define MMAPTOP   (MAXVA - 2*PGSIZE)   
