@@ -3,7 +3,11 @@
 #include "defs.h"
 #include "param.h"
 #include "memlayout.h"
+#include "spinlock.h"
 #include "proc.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 #include "mmap.h"
 
 
@@ -97,16 +101,29 @@ sys_munmap(void)
   uint64 len = PGROUNDUP((uint64)length);
   if(len == 0) return (uint64)-1;
 
+  uint64 a0 = uaddr;
+  uint64 a1 = uaddr + len;
+  if(a1 < a0) return (uint64)-1; 
+
   struct proc *p = myproc();
+
+  struct vma *v = 0;
+  uint64 v0 = 0, v1 = 0, v_off0 = 0;
+  int v_prot = 0, v_flags = 0;
+  struct file *f = 0;
 
   acquire(&p->lock);
 
-  // find a VMA whose start exactly matches uaddr
-  struct vma *v = 0;
   for(int i = 0; i < NVMA; i++){
-    if(p->vmas[i].used && p->vmas[i].start == uaddr){
-      v = &p->vmas[i];
-      break;
+    if(p->vmas[i].used){
+      uint64 s = p->vmas[i].start;
+      uint64 e = s + p->vmas[i].len;
+      if(s <= a0 && a0 < e){
+        v = &p->vmas[i];
+        v0 = s;
+        v1 = e;
+        break;
+      }
     }
   }
 
@@ -115,23 +132,76 @@ sys_munmap(void)
     return (uint64)-1;
   }
 
-  if(v->len != len){
+  if(a1 > v1){
     release(&p->lock);
     return (uint64)-1;
   }
 
-  uint64 npages = v->len / PGSIZE;
-  uvmunmap(p->pagetable, v->start, npages, 1);
+  int whole  = (a0 == v0 && a1 == v1);
+  int left   = (a0 == v0 && a1 <  v1);
+  int right  = (a0 >  v0 && a1 == v1);
 
+  if(!(whole || left || right)){
+    release(&p->lock);
+    return (uint64)-1;
+  }
 
-  v->used  = 0;
-  v->start = 0;
-  v->len   = 0;
-  v->prot  = 0;
-  v->flags = 0;
-  v->off   = 0;
-  v->f     = 0;
+  v_off0  = v->off;
+  v_prot  = v->prot;
+  v_flags = v->flags;
+  f       = v->f;
+
+  if(whole){
+    v->used  = 0;
+    v->start = 0;
+    v->len   = 0;
+    v->prot  = 0;
+    v->flags = 0;
+    v->off   = 0;
+    v->f     = 0;
+  } else if(left){
+    uint64 delta = a1 - v0;
+    v->start = a1;
+    v->len   = v1 - a1;
+    v->off   = v_off0 + delta;
+  } else {
+    v->len = a0 - v0;
+  }
 
   release(&p->lock);
+
+  int can_wb = 0;
+  if(f != 0 && (v_flags & MAP_SHARED) && (v_prot & PROT_WRITE) && f->type == FD_INODE)
+    can_wb = 1;
+
+  for(uint64 a = a0; a < a1; a += PGSIZE){
+    pte_t *pte = walk(p->pagetable, a, 0);
+    if(pte == 0) continue;
+    if((*pte & PTE_V) == 0) continue;
+
+    if(can_wb && ((*pte & PTE_D) != 0)){
+      uint64 pa = PTE2PA(*pte);
+      uint64 fileoff = v_off0 + (a - v0);
+
+      struct inode *ip = f->ip;
+      if(ip){
+        begin_op();
+        ilock(ip);
+        int n = writei(ip, 0 , pa, (uint)fileoff, PGSIZE);
+        iunlock(ip);
+        end_op();
+
+        if(n < 0){
+          setkilled(p);
+        }
+      }
+    }
+
+    uvmunmap(p->pagetable, a, 1, 1);
+  }
+
+  if(whole && f)
+    fileclose(f);
+
   return 0;
 }

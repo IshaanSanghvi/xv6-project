@@ -68,22 +68,14 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else if(r_scause() == 13 || r_scause() == 15){
+  } else if(r_scause() == 12 || r_scause() == 13 || r_scause() == 15){
     uint64 va = PGROUNDDOWN(r_stval());
     uint64 sc = r_scause();
 
     if(handle_mmap_fault(p, va, sc) == 0){
 
     }
-    else if(vmfault(p->pagetable, va, (sc == 13) ? 1 : 0) == 0){
-
-    }
-    // 3) not handled => kill
     else{
-      struct vma *v = vma_find(myproc(), PGROUNDDOWN(r_stval()));
-      printf("vma=%p\n", v);
-      printf("usertrap(): unexpected scause 0x%lx pid=%d\n", sc, p->pid);
-      printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), va);
       setkilled(p);
     }
   }

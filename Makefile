@@ -157,6 +157,7 @@ UPROGS=\
 	$U/_fileclosetest \
 	$U/_mapfileread \
 	$U/_writebacktest \
+	$U/_lazy_mmap \
 
 
 fs.img: mkfs/mkfs README $(UPROGS)
