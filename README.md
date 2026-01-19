@@ -30,7 +30,7 @@ For shared writable mappings, modified pages are tracked using the hardware dirt
 
 ## Performance Evaluation
 
-To evaluate the effectiveness of demand paging, I compared **lazy (demand-paged)** mappings against **eager (prefaulted)** mappings.
+To evaluate the effectiveness of demand paging, I compared **lazy (demand-paged)** mappings against **eager (default)** mappings.
 
 For each experiment, a file was memory-mapped and a subset of pages was accessed. Timing was measured using kernel ticks.
 
@@ -52,4 +52,3 @@ For each experiment, a file was memory-mapped and a subset of pages was accessed
 - Demand paging significantly reduces startup and access costs when only a subset of pages is used
 - Page faults provide a clean and efficient mechanism for on-demand memory allocation
 - Lazy allocation trades upfront cost for better average-case performance
-
